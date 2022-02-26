@@ -1,4 +1,4 @@
-import { exec } from "../compiler";
+import { exec } from "../interpreter";
 
 const program = `
   # this is a comment
