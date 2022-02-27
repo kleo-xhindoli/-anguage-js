@@ -2,7 +2,7 @@ import { AST, LambdaAST } from "../ast";
 import Environment from "./shared/environment";
 import { apply_op } from "./shared/utils";
 
-export default function evaluate(exp: AST, env: Environment): any {
+function evaluate(exp: AST, env: Environment): any {
   switch (exp.type) {
     case "num":
     case "str":
@@ -68,7 +68,12 @@ function make_lambda(env: Environment, exp: LambdaAST) {
   return lambda;
 }
 
-export function set_globals(globalEnv: Environment) {
+export default function exec(ast: AST, globalEnv: Environment) {
+  set_globals(globalEnv);
+  evaluate(ast, globalEnv);
+}
+
+function set_globals(globalEnv: Environment) {
   globalEnv.def("print", function (txt: string) {
     console.log(txt);
   });
