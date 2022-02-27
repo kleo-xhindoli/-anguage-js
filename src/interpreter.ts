@@ -52,7 +52,7 @@ function evaluate(exp: AST, env: Environment): any {
     case "var":
       return env.get(exp.value);
     case "assign":
-      if (exp.left.type != "var")
+      if (exp.left.type !== "var")
         throw new Error("Cannot assign to " + JSON.stringify(exp.left));
       return env.set(exp.left.value, evaluate(exp.right, env));
     case "binary":
@@ -88,6 +88,104 @@ function evaluate(exp: AST, env: Environment): any {
         env = scope;
       });
       return evaluate(exp.body, env);
+    default:
+      throw new Error("I don't know how to evaluate " + exp);
+  }
+}
+
+function evaluate_cps(
+  exp: AST,
+  env: Environment,
+  callback: (exp_result: any) => void
+) {
+  switch (exp.type) {
+    case "num":
+    case "str":
+    case "bool":
+      callback(exp.value);
+      return;
+    case "var":
+      callback(env.get(exp.value));
+      return;
+    case "assign":
+      const leftAst = exp.left;
+      const rightAst = exp.right;
+
+      if (leftAst.type !== "var")
+        throw new Error("Cannot assign to " + JSON.stringify(exp.left));
+
+      evaluate_cps(rightAst, env, function (right) {
+        callback(env.set(leftAst.value, right));
+      });
+      return;
+
+    case "binary":
+      evaluate_cps(exp.left, env, function (left) {
+        evaluate_cps(exp.right, env, function (right) {
+          callback(apply_op(exp.operator, left, right));
+        });
+      });
+      return;
+
+    case "let":
+      (function loop(env, i) {
+        if (i < exp.vars.length) {
+          var v = exp.vars[i];
+          if (v.def)
+            evaluate_cps(v.def, env, function (value) {
+              var scope = env.extend();
+              scope.def(v.name, value);
+              loop(scope, i + 1);
+            });
+          else {
+            var scope = env.extend();
+            scope.def(v.name, false);
+            loop(scope, i + 1);
+          }
+        } else {
+          evaluate_cps(exp.body, env, callback);
+        }
+      })(env, 0);
+      return;
+    case "lambda":
+      callback(make_lambda_cps(env, exp));
+      return;
+
+    case "if":
+      evaluate_cps(exp.cond, env, function (cond) {
+        if (cond !== false) evaluate_cps(exp.then, env, callback);
+        else if (exp.else) evaluate_cps(exp.else, env, callback);
+        else callback(false);
+      });
+      return;
+
+    case "prog":
+      (function loop(last, i) {
+        if (i < exp.prog.length)
+          evaluate_cps(exp.prog[i], env, function (val) {
+            loop(val, i + 1);
+          });
+        else {
+          callback(last);
+        }
+      })(false, 0);
+      return;
+
+    case "call":
+      evaluate_cps(exp.func, env, function (func) {
+        (function loop(args, i) {
+          if (i < exp.args.length)
+            evaluate_cps(exp.args[i], env, function (arg) {
+              args[i + 1] = arg;
+              loop(args, i + 1);
+            });
+          else {
+            func.apply(null, args);
+          }
+        })([callback], 0);
+      });
+      return;
+
     default:
       throw new Error("I don't know how to evaluate " + exp);
   }
@@ -150,19 +248,75 @@ function make_lambda(env: Environment, exp: LambdaAST) {
   return lambda;
 }
 
-export function exec(program: string) {
+function make_lambda_cps(env: Environment, exp: LambdaAST) {
+  if (exp.name) {
+    env = env.extend();
+    env.def(exp.name, lambda);
+  }
+  function lambda(callback: (result: any) => void) {
+    var names = exp.vars;
+    var scope = env.extend();
+    for (var i = 0; i < names.length; ++i)
+      scope.def(names[i], i + 1 < arguments.length ? arguments[i + 1] : false);
+
+    evaluate_cps(exp.body, scope, callback);
+  }
+  return lambda;
+}
+
+type ExecMode = "sync" | "cps";
+
+export function exec(program: string, mode: ExecMode = "sync") {
   const stream = InputStream(program);
   const tokenStream = TokenStream(stream);
   const ast = parse(tokenStream);
   const globalEnv = new Environment();
 
-  globalEnv.def("print", function (txt: string) {
-    console.log(txt);
-  });
+  if (mode === "sync") {
+    globalEnv.def("print", function (txt: string) {
+      console.log(txt);
+    });
 
-  globalEnv.def("println", function (txt: string) {
-    console.log(txt);
-  });
+    globalEnv.def("println", function (txt: string) {
+      console.log(txt);
+    });
 
-  evaluate(ast, globalEnv);
+    globalEnv.def("fibJS", function fibJS(n: number): number {
+      if (n < 2) return n;
+      return fibJS(n - 1) + fibJS(n - 2);
+    });
+
+    globalEnv.def("time", function (fn: Function) {
+      var t1 = Date.now();
+      var ret = fn();
+      var t2 = Date.now();
+      console.log("Time: " + (t2 - t1) + "ms");
+      return ret;
+    });
+  } else {
+    globalEnv.def("print", function (callback: Function, txt: string) {
+      console.log(txt);
+      callback(false);
+    });
+
+    globalEnv.def("println", function (callback: Function, txt: string) {
+      console.log("Callback", callback);
+      console.log(txt);
+      callback?.(false);
+    });
+
+    globalEnv.def("time", function (callback: Function, fn: Function) {
+      var t1 = Date.now();
+      var ret = fn();
+      var t2 = Date.now();
+      console.log("Time: " + (t2 - t1) + "ms");
+      callback?.(ret);
+    });
+  }
+
+  mode === "sync"
+    ? evaluate(ast, globalEnv)
+    : evaluate_cps(ast, globalEnv, (lastResult) => {
+        console.log("Result: ", lastResult);
+      });
 }
