@@ -26,7 +26,7 @@ export default class Environment {
   }
 
   set(name: string, value: any) {
-    var scope = this.lookup(name);
+    const scope = this.lookup(name);
     // let's not allow defining globals from a nested environment
     if (!scope && this.parent) throw new Error("Undefined variable " + name);
     return ((scope || this).vars[name] = value);

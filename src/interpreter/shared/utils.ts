@@ -1,6 +1,6 @@
 import { Operator } from "../../types";
 
-export function apply_op(op: Operator, a: any, b: any): number | boolean {
+export function applyOp(op: Operator, a: any, b: any): number | boolean {
   function num(x: any): number {
     if (typeof x != "number") throw new Error("Expected number but got " + x);
     return x;

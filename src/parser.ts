@@ -212,7 +212,6 @@ function parse(input: TokenStream) {
 
   function maybe_call(expr: () => AST): AST {
     let _expr = expr();
-    // @todo: avoid casting here
     return is_punc("(") ? parse_call(_expr) : _expr;
   }
 

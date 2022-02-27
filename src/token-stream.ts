@@ -17,8 +17,8 @@ export type Token =
   | OpToken;
 
 function TokenStream(input: InputStream) {
-  var current: Token | null = null;
-  var keywords = " let if then else lambda λ true false ";
+  let current: Token | null = null;
+  const keywords = " let if then else lambda λ true false ";
 
   return {
     next: next,
@@ -27,67 +27,69 @@ function TokenStream(input: InputStream) {
     croak: input.croak,
   };
 
-  function is_keyword(x: string) {
+  function isKeyword(x: string) {
     return keywords.indexOf(" " + x + " ") >= 0;
   }
 
-  function is_digit(ch: Char) {
+  function isDigit(ch: Char) {
     return /[0-9]/i.test(ch);
   }
 
-  function is_id_start(ch: Char) {
+  function isIdStart(ch: Char) {
     return /[a-zλ_]/i.test(ch);
   }
 
-  function is_id(ch: Char) {
-    return is_id_start(ch) || "?!-<>=0123456789".indexOf(ch) >= 0;
+  function isIdentifier(ch: Char) {
+    return isIdStart(ch) || "?!-<>=0123456789".indexOf(ch) >= 0;
   }
 
-  function is_op_char(ch: Char) {
+  function isOpChar(ch: Char) {
     return "+-*/%=&|<>!".indexOf(ch) >= 0;
   }
 
-  function is_punc(ch: Char) {
+  function isPunc(ch: Char) {
     return ",;(){}[]".indexOf(ch) >= 0;
   }
 
-  function is_whitespace(ch: Char) {
+  function isWhitespace(ch: Char) {
     return " \t\n".indexOf(ch) >= 0;
   }
 
-  function read_while(predicate: Predicate) {
-    var str = "";
+  function readWhile(predicate: Predicate) {
+    let str = "";
     while (!input.eof() && predicate(input.peek())) str += input.next();
     return str;
   }
 
-  function read_number(): NumToken {
-    var has_dot = false;
-    var number = read_while(function (ch) {
+  function readNumber(): NumToken {
+    let hasDot = false;
+    const number = readWhile((ch) => {
       if (ch == ".") {
-        if (has_dot) return false;
-        has_dot = true;
+        if (hasDot) return false;
+        hasDot = true;
         return true;
       }
-      return is_digit(ch);
+      return isDigit(ch);
     });
+
     return { type: "num", value: parseFloat(number) };
   }
 
-  function read_ident(): KwToken | VarToken {
-    var id = read_while(is_id);
+  function readIdent(): KwToken | VarToken {
+    const id = readWhile(isIdentifier);
     return {
-      type: is_keyword(id) ? "kw" : "var",
+      type: isKeyword(id) ? "kw" : "var",
       value: id,
     };
   }
 
-  function read_escaped(end: Char) {
-    var escaped = false,
-      str = "";
+  function readEscaped(end: Char) {
+    let escaped = false;
+    let str = "";
     input.next();
+
     while (!input.eof()) {
-      var ch = input.next();
+      const ch = input.next();
       if (escaped) {
         str += ch;
         escaped = false;
@@ -102,49 +104,51 @@ function TokenStream(input: InputStream) {
     return str;
   }
 
-  function read_string(): StrToken {
-    return { type: "str", value: read_escaped('"') };
+  function readString(): StrToken {
+    return { type: "str", value: readEscaped('"') };
   }
-  function skip_comment() {
-    read_while(function (ch) {
+
+  function skipComment() {
+    readWhile((ch) => {
       return ch != "\n";
     });
     input.next();
   }
 
-  function read_next(): Token | null {
-    read_while(is_whitespace);
+  function readNext(): Token | null {
+    readWhile(isWhitespace);
     if (input.eof()) return null;
-    var ch = input.peek();
+
+    const ch = input.peek();
     if (ch == "#") {
-      skip_comment();
-      return read_next();
+      skipComment();
+      return readNext();
     }
-    if (ch == '"') return read_string();
-    if (is_digit(ch)) return read_number();
-    if (is_id_start(ch)) return read_ident();
-    if (is_punc(ch))
+    if (ch == '"') return readString();
+    if (isDigit(ch)) return readNumber();
+    if (isIdStart(ch)) return readIdent();
+    if (isPunc(ch))
       return {
         type: "punc",
         value: input.next(),
       };
-    if (is_op_char(ch))
+    if (isOpChar(ch))
       return {
         type: "op",
-        value: read_while(is_op_char) as Operator,
+        value: readWhile(isOpChar) as Operator,
       };
 
     throw input.croak("Can't handle character: " + ch);
   }
 
   function peek(): Token | null {
-    return current || (current = read_next());
+    return current || (current = readNext());
   }
 
   function next(): Token {
     var tok = current;
     current = null;
-    return tok || (read_next() as Token);
+    return tok || (readNext() as Token);
   }
 
   function eof() {

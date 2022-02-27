@@ -1,9 +1,9 @@
 import { Char } from "./types";
 
 function InputStream(input: Char) {
-  var pos = 0,
-    line = 1,
-    col = 0;
+  let pos = 0;
+  let line = 1;
+  let col = 0;
 
   return {
     next: next,
@@ -13,8 +13,8 @@ function InputStream(input: Char) {
   };
 
   function next() {
-    var ch = input.charAt(pos++);
-    if (ch == "\n") line++, (col = 0);
+    const ch = input.charAt(pos++);
+    if (ch === "\n") line++, (col = 0);
     else col++;
     return ch;
   }
