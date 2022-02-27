@@ -168,23 +168,37 @@ export default function exec(ast: AST, globalEnv: Environment) {
 }
 
 function set_globals(globalEnv: Environment) {
-  globalEnv.def("print", function (callback: Function, txt: string) {
+  globalEnv.def("print", function (k: Function, txt: string) {
     console.log(txt);
-    callback(false);
+    k(false);
   });
 
-  globalEnv.def("println", function (callback: Function, txt: string) {
+  globalEnv.def("println", function (k: Function, txt: string) {
     console.log(txt);
-    callback(false);
+    k(false);
   });
 
-  globalEnv.def("time", function (callback: Function, fn: Function) {
+  globalEnv.def("time", function (k: Function, fn: Function) {
     var t1 = Date.now();
 
     fn(function (result: any) {
       var t2 = Date.now();
       console.log("Time: " + (t2 - t1) + "ms");
-      callback(result);
+      Execute(k, [result]);
+    });
+  });
+
+  globalEnv.def("halt", function (_: Function) {});
+
+  globalEnv.def("sleep", function (k: Function, milliseconds: number) {
+    setTimeout(function () {
+      Execute(k, [false]); // continuations expect a value, pass false
+    }, milliseconds);
+  });
+
+  globalEnv.def("CallCC", function (k: Function, f: Function) {
+    f(k, function CC(discarded: Function, ret: any) {
+      k(ret);
     });
   });
 }

@@ -94,4 +94,14 @@ function set_globals(globalEnv: Environment) {
     console.log("Time: " + (t2 - t1) + "ms");
     return ret;
   });
+
+  globalEnv.def("halt", function () {
+    // In sync mode the only way to stop the program
+    // is to throw an error.
+    throw new Error("Program halted");
+  });
+
+  globalEnv.def("sleep", function (milliseconds: number) {
+    throw new Error("sleep function does not work in `sync` mode.");
+  });
 }
