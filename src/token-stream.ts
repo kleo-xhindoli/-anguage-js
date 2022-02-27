@@ -18,7 +18,7 @@ export type Token =
 
 function TokenStream(input: InputStream) {
   var current: Token | null = null;
-  var keywords = " if then else lambda λ true false ";
+  var keywords = " let if then else lambda λ true false ";
 
   return {
     next: next,

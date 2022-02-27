@@ -81,8 +81,15 @@ function evaluate(exp: AST, env: Environment): any {
           return evaluate(arg, env);
         })
       );
+    case "let":
+      exp.vars.forEach(function (v) {
+        var scope = env.extend();
+        scope.def(v.name, v.def ? evaluate(v.def, env) : false);
+        env = scope;
+      });
+      return evaluate(exp.body, env);
     default:
-      throw new Error("I don't know how to evaluate " + exp.type);
+      throw new Error("I don't know how to evaluate " + exp);
   }
 }
 
@@ -128,6 +135,11 @@ function apply_op(op: Operator, a: any, b: any): number | boolean {
 }
 
 function make_lambda(env: Environment, exp: LambdaAST) {
+  if (exp.name) {
+    env = env.extend();
+    env.def(exp.name, lambda);
+  }
+
   function lambda() {
     var names = exp.vars;
     var scope = env.extend();

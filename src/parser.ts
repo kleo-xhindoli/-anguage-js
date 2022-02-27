@@ -6,8 +6,10 @@ import {
   CallAST,
   IfAST,
   LambdaAST,
+  LetAST,
   ProgAST,
   VarAST,
+  VarDef,
   VarName,
 } from "./ast";
 import type { TokenStream } from "./token-stream";
@@ -102,7 +104,7 @@ function parse(input: TokenStream) {
     stop: Char,
     separator: Char,
     parser: ParserFn<T>
-  ) {
+  ): T[] {
     var a = [],
       first = true;
     skip_punc(start);
@@ -117,7 +119,7 @@ function parse(input: TokenStream) {
     return a;
   }
 
-  function parse_call(func: VarAST): CallAST {
+  function parse_call(func: AST): CallAST {
     return {
       type: "call",
       func: func,
@@ -154,6 +156,7 @@ function parse(input: TokenStream) {
   function parse_lambda(): LambdaAST {
     return {
       type: "lambda",
+      name: input.peek()?.type === "var" ? String(input.next().value) : null,
       vars: delimited("(", ")", ",", parse_varname),
       body: parse_expression(),
     };
@@ -166,10 +169,51 @@ function parse(input: TokenStream) {
     };
   }
 
+  function parse_let(): CallAST | LetAST {
+    skip_kw("let");
+    if (input.peek()?.type === "var") {
+      var name = input.next().value;
+      var defs = delimited("(", ")", ",", parse_vardef);
+      return {
+        type: "call",
+        func: {
+          type: "lambda",
+          name: String(name),
+          vars: defs.map(function (def) {
+            return def.name;
+          }),
+          body: parse_expression(),
+        },
+        args: defs.map(function (def) {
+          return def.def || FALSE;
+        }),
+      };
+    }
+    return {
+      type: "let",
+      vars: delimited("(", ")", ",", parse_vardef),
+      body: parse_expression(),
+    };
+  }
+
+  function parse_vardef(): VarDef {
+    var name = parse_varname(),
+      def;
+    if (is_op("=")) {
+      input.next();
+      def = parse_expression();
+      return { name: name, def: def };
+    } else {
+      throw input.croak(
+        `Expected token '='. Received: '${input.peek()?.value}'`
+      );
+    }
+  }
+
   function maybe_call(expr: () => AST): AST {
     let _expr = expr();
     // @todo: avoid casting here
-    return is_punc("(") ? parse_call(_expr as VarAST) : _expr;
+    return is_punc("(") ? parse_call(_expr) : _expr;
   }
 
   function parse_atom(): AST {
@@ -187,6 +231,8 @@ function parse(input: TokenStream) {
         input.next();
         return parse_lambda();
       }
+      if (is_kw("let")) return parse_let();
+
       var tok = input.next();
       if (tok.type == "var" || tok.type == "num" || tok.type == "str")
         return tok as AST;
